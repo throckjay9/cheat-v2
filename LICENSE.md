@@ -111,12 +111,13 @@ local function UpdateAimbot()
 
     local closestPlayer = nil
     local shortestDistance = math.huge
+    local currentCameraPos = Camera.CFrame.Position
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local head = player.Character:FindFirstChild("Head")
             if head then
-                local distance = (head.Position - Camera.CFrame.Position).Magnitude
+                local distance = (head.Position - currentCameraPos).Magnitude
                 if distance < shortestDistance then
                     shortestDistance = distance
                     closestPlayer = player
@@ -128,9 +129,8 @@ local function UpdateAimbot()
     if closestPlayer and closestPlayer.Character then
         local head = closestPlayer.Character:FindFirstChild("Head")
         if head then
-            -- Mira na cabeça (simulação)
-            local targetPosition = head.Position
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+            -- Mira na cabeça (ajusta a câmera)
+            Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, head.Position)
         end
     end
 end
@@ -149,7 +149,7 @@ RunService.RenderStepped:Connect(function()
     UpdateAimbot()
 end)
 
--- Tecla Q para abrir/fechar GUI
+-- Tecla Q para abrir/fechar GUI (corrigido)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == ACTIVATE_KEY and not gameProcessed then
         Frame.Visible = not Frame.Visible
