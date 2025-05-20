@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
 -- GUI
@@ -16,6 +17,7 @@ ScreenGui.Parent = game.CoreGui
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0.2, 0, 0.3, 0)
 Frame.Position = UDim2.new(0.05, 0, 0.7, 0)
+Frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
 Frame.BackgroundTransparency = 0.5
 Frame.Visible = false
 Frame.Parent = ScreenGui
@@ -24,65 +26,113 @@ local ToggleESP = Instance.new("TextButton")
 ToggleESP.Size = UDim2.new(0.8, 0, 0.3, 0)
 ToggleESP.Position = UDim2.new(0.1, 0, 0.1, 0)
 ToggleESP.Text = "ESP: OFF"
+ToggleESP.TextColor3 = Color3.new(1, 1, 1)
+ToggleESP.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 ToggleESP.Parent = Frame
 
 local ToggleAimbot = Instance.new("TextButton")
 ToggleAimbot.Size = UDim2.new(0.8, 0, 0.3, 0)
 ToggleAimbot.Position = UDim2.new(0.1, 0, 0.5, 0)
 ToggleAimbot.Text = "Aimbot: OFF"
+ToggleAimbot.TextColor3 = Color3.new(1, 1, 1)
+ToggleAimbot.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 ToggleAimbot.Parent = Frame
 
--- Função para desenhar ESP (nomes)
-local function DrawESP(player)
-    local character = player.Character
-    if character and character:FindFirstChild("Head") then
-        local head = character.Head
-        local BillboardGui = Instance.new("BillboardGui")
-        BillboardGui.Adornee = head
-        BillboardGui.Size = UDim2.new(0, 100, 0, 50)
-        BillboardGui.StudsOffset = Vector3.new(0, 1.5, 0)
-        BillboardGui.AlwaysOnTop = true
-        BillboardGui.Parent = head
+-- Variáveis do ESP
+local ESPObjects = {}
 
-        local TextLabel = Instance.new("TextLabel")
-        TextLabel.Size = UDim2.new(1, 0, 1, 0)
-        TextLabel.BackgroundTransparency = 1
-        TextLabel.Text = player.Name
-        TextLabel.TextColor3 = Color3.new(1, 1, 1)
-        TextLabel.Parent = BillboardGui
-    end
+-- Função para desenhar ESP (Nome, Linha, Caixa)
+local function DrawESP(player)
+    if ESPObjects[player] then return end -- Evita duplicar ESP
+
+    local character = player.Character
+    if not character then return end
+
+    local head = character:FindFirstChild("Head")
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not head or not humanoidRootPart then return end
+
+    -- Nome
+    local BillboardGui = Instance.new("BillboardGui")
+    BillboardGui.Name = "ESP_Name"
+    BillboardGui.Adornee = head
+    BillboardGui.Size = UDim2.new(0, 100, 0, 40)
+    BillboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
+    BillboardGui.AlwaysOnTop = true
+    BillboardGui.Parent = head
+
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Size = UDim2.new(1, 0, 1, 0)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Text = player.Name
+    TextLabel.TextColor3 = Color3.new(1, 1, 1)
+    TextLabel.TextStrokeTransparency = 0.5
+    TextLabel.Parent = BillboardGui
+
+    -- Linha (Tracer)
+    local Line = Instance.new("LineHandleAdornment")
+    Line.Name = "ESP_Line"
+    Line.Adornee = humanoidRootPart
+    Line.Length = (humanoidRootPart.Position - Camera.CFrame.Position).Magnitude
+    Line.Thickness = 1
+    Line.Color3 = Color3.new(1, 0, 0)
+    Line.Transparency = 0.5
+    Line.ZIndex = 1
+    Line.Parent = humanoidRootPart
+
+    -- Caixa (Box)
+    local Box = Instance.new("BoxHandleAdornment")
+    Box.Name = "ESP_Box"
+    Box.Adornee = humanoidRootPart
+    Box.Size = Vector3.new(2, 3, 1)
+    Box.Color3 = Color3.new(0, 1, 0)
+    Box.Transparency = 0.7
+    Box.ZIndex = 0
+    Box.Parent = humanoidRootPart
+
+    ESPObjects[player] = {BillboardGui, Line, Box}
 end
 
 -- Função para remover ESP
 local function ClearESP()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Character and player.Character:FindFirstChild("Head") then
-            local head = player.Character.Head
-            for _, child in ipairs(head:GetChildren()) do
-                if child:IsA("BillboardGui") then
-                    child:Destroy()
-                end
+    for player, objects in pairs(ESPObjects) do
+        for _, obj in ipairs(objects) do
+            if obj and obj.Parent then
+                obj:Destroy()
             end
         end
     end
+    ESPObjects = {}
 end
 
--- Aimbot Simulado (mira no jogador mais próximo)
-local function FindClosestPlayer()
+-- Aimbot (Mira na cabeça do inimigo mais próximo)
+local function UpdateAimbot()
+    if not AIMBOT_ENABLED or not LocalPlayer.Character then return end
+
     local closestPlayer = nil
     local shortestDistance = math.huge
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-            local distance = (player.Character.Head.Position - LocalPlayer.Character.Head.Position).Magnitude
-            if distance < shortestDistance then
-                shortestDistance = distance
-                closestPlayer = player
+        if player ~= LocalPlayer and player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            if head then
+                local distance = (head.Position - Camera.CFrame.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
             end
         end
     end
 
-    return closestPlayer
+    if closestPlayer and closestPlayer.Character then
+        local head = closestPlayer.Character:FindFirstChild("Head")
+        if head then
+            -- Mira na cabeça (simulação)
+            local targetPosition = head.Position
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+        end
+    end
 end
 
 -- Atualizar ESP e Aimbot
@@ -96,14 +146,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if AIMBOT_ENABLED then
-        local target = FindClosestPlayer()
-        if target and target.Character and target.Character:FindFirstChild("Head") then
-            local head = target.Character.Head
-            -- Simula mira (não é um aimbot real)
-            LocalPlayer.Character.Humanoid:MoveTo(head.Position)
-        end
-    end
+    UpdateAimbot()
 end)
 
 -- Tecla Q para abrir/fechar GUI
